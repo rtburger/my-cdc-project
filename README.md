@@ -17,10 +17,10 @@ The project proposes using Debezium to capture changes (CDC - such as inserts, u
 other???
 
 ## App Design
-![Alt text](/docs/images/app-design-v1.png)
+![Alt text](/doc/images/app-design-v1.png)
 
 ## Cloud Infra Design
-![Alt text](/docs/images/cloud-infra-design-v1.png)
+![Alt text](/doc/images/cloud-infra-design-v1.png)
 
 # Tools Used
 [deps-new](https://github.com/seancorfield/deps-new)
