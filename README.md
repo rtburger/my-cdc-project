@@ -25,6 +25,28 @@ other???
 # Tools Used
 [deps-new](https://github.com/seancorfield/deps-new)
 
+# Learning Resources
+[Core.Async in Use - Timothy Baldridge](https://www.youtube.com/watch?v=096pIlA3GDo)
+[ETL with Clojure and Datomic](https://www.youtube.com/watch?v=oOON--g1PyU)
+[grammarly - Building ETL Pipelines with Clojure and Transducers](https://www.grammarly.com/blog/engineering/building-etl-pipelines-with-clojure-and-transducers/)
+
+
+# Plan
+| Task | Status |
+| :--- | :---: |  
+| Install SQL Server 2022 (16.x) on Ubuntu 22.04 local machine| DONE|
+| Install PostreSQL on Ubuntu 22.04 local machine | DONE |
+| Configure CDC on SQL Server | DONE |
+| Configure CDC on PostreSQL | TODO |
+| Embed Debezium Engine in Clojure App | TODO |
+| Read and process Debezium message in Clojure | TODO
+| core.async | TODO |
+| Transducers | TODO |
+| Delta.io | TODO |
+| Azure Cloud Terraform | TODO|
+| Azure Cloud CICD | TODO |
+
+
 
 ## Installation
 
