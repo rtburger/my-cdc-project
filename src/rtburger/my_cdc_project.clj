@@ -1,10 +1,15 @@
 (ns rtburger.my-cdc-project
   (:import [io.debezium.config Configuration]
-           [io.debezium.embedded EmbeddedEngine] 
+           [io.debezium.embedded EmbeddedEngine]
            [io.debezium.embedded EmbeddedEngine$CompletionCallback]
-           [io.debezium.embedded.spi OffsetCommitPolicy])
-  
-  (:require [clojure.core.async :refer [>! <! go chan]])) 
+           [io.debezium.embedded EmbeddedEngine$CompletionResult]
+           [io.debezium.embedded EmbeddedEngine$ConnectorCallback]
+           [io.debezium.embedded EmbeddedEngine$RecordCommitter]
+           [io.debezium.embedded EmbeddedEngine$ChangeConsumer])
+
+  (:require [clojure.core.async :refer [>! <! go chan]]
+            [com.rpl.proxy-plus :refer [proxy+]]
+            [clojure.test :refer :all]))
 
 ;;TODO
 ;; 1/ how will i handle fault tolerance ?
@@ -20,8 +25,7 @@
 
 ;; Define the configuration for the embedded engine and SQL Server connector
 (def debezium-config
-  {
-   ; begin engine properties
+  {; begin engine properties
    "name" "my-engine" ; "Unique name for this connector instance."
    "connector.class" "io.debezium.connector.sqlserver.SqlServerConnect" ;("The Java class for the connector"
    "offset.storage" "org.apache.kafka.connect.storage.FileOffsetBackingStore" ; The Java class that implements the `OffsetBackingStore `" interface, used to periodically store offsets so that, upon restart, the connector can resume where it last left off.
@@ -45,43 +49,78 @@
 ;; Create the engine with this config
 ;; TODO what is Clojure idiomatic way for exception handling?
 
+;; for reference https://github.com/debezium/debezium/blob/main/debezium-embedded/src/main/java/io/debezium/embedded/EmbeddedEngine.java
 
 ; TODO impl interface CompletionCallback    
-(defn create-complettion-callback
+(defn create-completion-callback
   ; Handle the completion of the embedded connector engine
+  ; LEARNING: The first parameter must be supplied to correspond to the target object ('this' in Java parlance).
+  ; https://clojure.github.io/clojure/clojure.core-api.html#clojure.core/reify
+  ; reify will  only work with interfaces
   [f]
   (reify EmbeddedEngine$CompletionCallback
-    (handle [_ _ message error] ;why does java method only have 3 params?
-            (f message error)))
-  )
+    (handle [this success message error]
+      (f success message error))))
+
+;  with proxy
+; is this right ???
+(defn create-completion-callback2 [f]
+  (proxy [EmbeddedEngine$CompletionResult] []
+    (handle [success message error]
+      (f success message error))))
+
+; with rpl proxy+ lib
+; is this right ???
+(defn create-completion-callback3 [f]
+  (proxy+ [] EmbeddedEngine$CompletionResult
+          (handle [this success message error]
+                  (f success message error))))
+
 
 ; TODO impl interface ConnectorCallback
-(defn create-connector-callback []
-  ; A callback function which informs users about the various stages a connector goes through during startup
-  ; 
-  )
+(defn create-connector-callback
+  ; A callback function which informs users about the various stages a connector goes through  during startup
+  ; LEARNING: :: is used to auto-resolve a keyword in the current namespace. 
+  [f]
+  (reify EmbeddedEngine$ConnectorCallback
+    ; called after a connector has been successfully started 
+    (connectorStarted [this]
+      (f ::connector-started))
+    ; called after a connector has been successfully stopped
+    (connectorStopped [this]
+      (f ::connector-stopped))
+    ; called after a connector task has been successfully started
+    (taskStarted [this]
+      (f ::task-started))
+    ; called after a connector task has been successfully stopped
+    (taskStopped [this]
+      (f ::task-stopped))))
+
 
 ; TODO impl inteface RecordCommitter
-(defn record-committer []
-  ; Marks a single record as processed, must be called for each record 
-  )
+(defn record-committer [])
+; should i wrap RecordCommitter<R>?
 
 ; TODO impl interface Offsets
 (defn offsets []
-  ; Associates a key with a specific value, overwrites the value if the key is already present
-
+  ; should i wrap this offset?
   )
 
 ; TODO impl interface ChangeConsumer
-(defn change-consumer []
+(defn change-consumer
   ; handle a catch of records
-  )
+  [f]
+  (reify EmbeddedEngine$ChangeConsumer
+    (handleBatch [this records committer]
+      (f records committer)
+      (.markBatchFinished committer))))
+
+
+
+
+
 
 ; TODO impl Builder
-(defn create-engine [{:keys [config consumer] :as options}]
-  ; A builder to setup and create Debezium Engine instance
-  (let [builder (EmbeddedEngine/create)])
-  )
 
 
 
@@ -106,4 +145,68 @@
 
 
 
+(comment
+ ; testing create-completion-callback 
+  (defn my-callback [success message error]
+    (if error
+      (println "error" error)
+      (println "no error" error)))
 
+
+  (let [callback (create-completion-callback3 my-callback)]
+    (. callback handle true "hi" nil))
+
+
+  ; testing create-connector-callback
+  (defn my-callback [stage]
+    (println "Connector reached stage:" (name stage)))
+
+  (def my-connector-callback (create-connector-callback my-callback))
+
+  (.connectorStarted my-connector-callback)
+  (.taskStarted my-connector-callback)
+  (.taskStopped my-connector-callback)
+  (.connectorStopped my-connector-callback)
+  
+  ; testing change-consumer
+
+
+(defn handle-batch [records committer]
+  (println "Processing batch of records:" records))
+
+(def my-consumer (change-consumer handle-batch))
+
+;; simulate a batch of records
+(def records [{:id 1 :name "Alice"} {:id 2 :name "Bob"} {:id 3 :name "Charlie"}])
+
+;; simulate a committer object
+(def committer (proxy [EmbeddedEngine$RecordCommitter] [] (markBatchFinished [])))
+
+;; process the batch of records using my-consumer
+(.handleBatch my-consumer records committer)
+
+(let [consumer (change-consumer handle-batch)]
+  (. consumer handleBatch records committer))
+
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  )
